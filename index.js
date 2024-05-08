@@ -28,7 +28,7 @@ jwtClient.authorize(function (err) {
 const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 const sheets = google.sheets("v4", jwtClient);
 
-let appendRow = {
+const DEFAULT_APPEND_ROW = {
   date: null,
   amount: 0,
   category: null,
@@ -36,42 +36,47 @@ let appendRow = {
   desc: "",
 };
 
+let appendRow = { ...DEFAULT_APPEND_ROW };
+
 // Обработчик команды /add
 
 const ids = [77714067, 62378975];
+
 bot.onText(/\/add/, (msg) => {
   console.log("msg", msg);
+
   if (!ids.includes(msg.from.id)) {
     return bot.sendMessage(msg.chat.id, "Тебе нельзя");
   }
-
+  appendRow = { ...DEFAULT_APPEND_ROW };
   //записали дату
   appendRow.date = dayjs().format("DD.MM/HH:mm");
 
   bot.sendMessage(msg.chat.id, "Введите сумму:");
-  bot.once("message", async (msg) => {
-    //записали время
-    appendRow.amount = parseFloat(msg.text);
+});
 
-    const { data } = await sheets.spreadsheets.values.get({
-      range: "Лист1!A2:A9",
-      spreadsheetId: spreadsheetId,
-      auth: jwtClient,
-    });
-    const categories = _chunk(
-      data.values
-        .flat()
-        .map((i) => ({ text: i, callback_data: `category_${i}` })),
-      2
-    );
+bot.onText(/^\d+$/, async (msg) => {
+  //записали время
+  appendRow.amount = parseFloat(msg.text);
 
-    console.log("categories", categories);
+  const { data } = await sheets.spreadsheets.values.get({
+    range: "Лист1!A2:A9",
+    spreadsheetId: spreadsheetId,
+    auth: jwtClient,
+  });
+  const categories = _chunk(
+    data.values
+      .flat()
+      .map((i) => ({ text: i, callback_data: `category_${i}` })),
+    2
+  );
 
-    bot.sendMessage(msg.chat.id, "Выберите категорию:", {
-      reply_markup: {
-        inline_keyboard: categories,
-      },
-    });
+  console.log("categories", categories);
+
+  bot.sendMessage(msg.chat.id, "Выберите категорию:", {
+    reply_markup: {
+      inline_keyboard: categories,
+    },
   });
 });
 
@@ -103,6 +108,7 @@ bot.on("callback_query", (msg, qwe) => {
     bot.once("message", async (msg) => {
       //записали кто описание
       appendRow.desc = msg.text;
+      console.log("msg", msg);
 
       sheets.spreadsheets.values.append(
         {
@@ -137,6 +143,18 @@ bot.on("callback_query", (msg, qwe) => {
                 parse_mode: "HTML",
               }
             );
+            ids
+              .filter((i) => i !== msg.from.id)
+              .forEach((userId) => {
+                bot.sendMessage(
+                  userId,
+                  `<b>${msg.from.first_name}</b> добавил трату\n<b>Денег:</b> ${appendRow.amount}\n<b>Категория:</b> ${appendRow.category}\n<b>Описание:</b> ${appendRow.desc}
+                  `,
+                  {
+                    parse_mode: "HTML",
+                  }
+                );
+              });
           }
         }
       );
