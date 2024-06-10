@@ -60,7 +60,7 @@ bot.onText(/^\d+$/, async (msg) => {
   appendRow.amount = parseFloat(msg.text);
 
   const { data } = await sheets.spreadsheets.values.get({
-    range: "Лист1!A2:A9",
+    range: "Лист1!A2:A12",
     spreadsheetId: spreadsheetId,
     auth: jwtClient,
   });
